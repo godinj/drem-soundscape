@@ -6,7 +6,18 @@
       "Bash(git -C JUCE log --oneline -1)",
       "mcp__filesystem__directory_tree",
       "Bash(git config:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(git submodule:*)",
+      "mcp__filesystem__read_text_file",
+      "mcp__filesystem__list_directory",
+      "Bash(git -C /home/godinj/dev/drem-soundscape log --oneline)",
+      "Bash(git -C /home/godinj/dev/drem-soundscape config --list)",
+      "Bash(find:*)",
+      "Bash(cmake:*)",
+      "Bash(sudo apt-get update:*)",
+      "Bash(sudo apt-get:*)",
+      "Bash(dpkg -l:*)",
+      "Bash(apt list:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
