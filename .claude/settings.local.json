@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(git -C JUCE describe --tags)",
+      "Bash(git -C JUCE log --oneline -1)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "mcp-toolkit-gateway",
+    "filesystem"
+  ]
+}
