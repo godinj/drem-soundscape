@@ -1,12 +1,15 @@
 #include "WaveformDisplay.h"
 #include "LoopingAudioSource.h"
 
-WaveformDisplay::WaveformDisplay(juce::AudioFormatManager& formatManager,
-                                 juce::AudioTransportSource& transportSource)
-    : transport(transportSource),
-      thumbnail(512, formatManager, thumbnailCache)
+WaveformDisplay::WaveformDisplay(juce::AudioFormatManager& formatManager)
+    : thumbnail(512, formatManager, thumbnailCache)
 {
     thumbnail.addChangeListener(this);
+}
+
+void WaveformDisplay::setTransportSource(juce::AudioTransportSource* source)
+{
+    transport = source;
 }
 
 WaveformDisplay::~WaveformDisplay()
@@ -103,22 +106,54 @@ void WaveformDisplay::paint(juce::Graphics& g)
         g.setColour(juce::Colour(0xfff38ba8));
         g.fillRect(endX - 1.0f, bounds.getY(), 2.0f, bounds.getHeight());
         g.fillRect(endX - 4.0f, bounds.getY(), 8.0f, 10.0f);
+
+        // Crossfade zone overlays
+        const int xfadeSamples = loopingSource->getCrossfadeSamples();
+        if (xfadeSamples > 0)
+        {
+            const float xfadeHeadEndX = sampleToX(loopingSource->getLoopStart() + xfadeSamples);
+            const float xfadeTailStartX = sampleToX(loopingSource->getLoopEnd() - xfadeSamples);
+
+            // Head zone overlay (blue tint at loop start)
+            g.setColour(juce::Colour(0x3089b4fa));
+            g.fillRect(startX, bounds.getY(), xfadeHeadEndX - startX, bounds.getHeight());
+
+            // Tail zone overlay (blue tint at loop end)
+            g.fillRect(xfadeTailStartX, bounds.getY(), endX - xfadeTailStartX, bounds.getHeight());
+
+            // Inner boundary lines
+            g.setColour(juce::Colour(0x6089b4fa));
+            g.drawLine(xfadeHeadEndX, bounds.getY(), xfadeHeadEndX, bounds.getBottom(), 1.0f);
+            g.drawLine(xfadeTailStartX, bounds.getY(), xfadeTailStartX, bounds.getBottom(), 1.0f);
+        }
     }
 
     // Draw playhead — wrap the transport's linear position into the loop region
-    if (loopingSource != nullptr && sampleRate > 0.0
-        && (transport.isPlaying() || transport.getCurrentPosition() > 0.0))
+    if (transport != nullptr && loopingSource != nullptr && sampleRate > 0.0
+        && (transport->isPlaying() || transport->getCurrentPosition() > 0.0))
     {
-        const auto posSamples = static_cast<juce::int64>(transport.getCurrentPosition() * sampleRate);
+        const auto posSamples = static_cast<juce::int64>(transport->getCurrentPosition() * sampleRate);
         const auto lStart = loopingSource->getLoopStart();
         const auto lEnd   = loopingSource->getLoopEnd();
         const auto loopLen = lEnd - lStart;
 
         if (loopLen > 0)
         {
-            auto wrapped = lStart + ((posSamples - lStart) % loopLen);
-            if (wrapped < lStart)
-                wrapped = lStart;
+            juce::int64 wrapped;
+            const int xfadeSamps = loopingSource->getCrossfadeSamples();
+
+            if (xfadeSamps > 0 && posSamples >= lEnd)
+            {
+                const auto effectiveLen = loopLen - static_cast<juce::int64>(xfadeSamps);
+                auto offset = (posSamples - lEnd) % effectiveLen;
+                wrapped = lStart + static_cast<juce::int64>(xfadeSamps) + offset;
+            }
+            else
+            {
+                wrapped = lStart + ((posSamples - lStart) % loopLen);
+                if (wrapped < lStart)
+                    wrapped = lStart;
+            }
 
             const float x = sampleToX(wrapped);
             g.setColour(juce::Colours::white);
@@ -161,7 +196,9 @@ void WaveformDisplay::mouseDrag(const juce::MouseEvent& event)
     juce::int64 loopStart = loopingSource->getLoopStart();
     juce::int64 loopEnd   = loopingSource->getLoopEnd();
 
-    static constexpr juce::int64 minLoopSamples = 256;
+    const juce::int64 minLoopSamples = juce::jmax(
+        static_cast<juce::int64>(256),
+        static_cast<juce::int64>(loopingSource->getCrossfadeSamples() * 2));
 
     if (dragging == DragTarget::Start)
     {

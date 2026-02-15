@@ -1,8 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "LoopingAudioSource.h"
-#include "WaveformDisplay.h"
+#include "SoundLayer.h"
 
 class MainComponent : public juce::Component
 {
@@ -13,35 +12,41 @@ public:
     void resized() override;
 
 private:
-    void loadFile();
+    void addFiles();
+    void addLayer(const juce::File& file, juce::int64 loopStart, juce::int64 loopEnd,
+                  int crossfadeSamples = 0, float curveX = 0.25f, float curveY = 0.75f);
+    void removeLayer(SoundLayer* layer);
+    void layoutLayers();
     void startPlayback();
     void stopPlayback();
-    void loadFileFromChooser(const juce::FileChooser& chooser);
     void savePreset();
     void loadPreset();
-    void loadAudioFile(const juce::File& file, juce::int64 loopStart, juce::int64 loopEnd);
 
     // Audio infrastructure
     juce::AudioDeviceManager deviceManager;
     juce::AudioFormatManager formatManager;
     juce::TimeSliceThread readAheadThread { "audio-read-ahead" };
 
-    // Source chain (owned bottom-up, destroyed top-down)
-    std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
-    std::unique_ptr<LoopingAudioSource> loopingSource;
-    juce::AudioTransportSource transportSource;
+    // Mixer and player
+    juce::MixerAudioSource mixer;
     juce::AudioSourcePlayer audioSourcePlayer;
 
+    // Layers
+    juce::OwnedArray<SoundLayer> layers;
+
     // GUI
-    juce::TextButton loadButton       { "Load File" };
+    juce::TextButton addFileButton    { "Add File" };
     juce::TextButton savePresetButton { "Save Preset" };
     juce::TextButton loadPresetButton { "Load Preset" };
     juce::TextButton playButton       { "Play" };
     juce::TextButton stopButton       { "Stop" };
-    WaveformDisplay waveformDisplay;
+
+    juce::Viewport viewport;
+    juce::Component layerContainer;
 
     std::unique_ptr<juce::FileChooser> fileChooser;
-    juce::File currentFilePath;
+
+    static constexpr int layerHeight = 188;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

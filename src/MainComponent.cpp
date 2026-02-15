@@ -1,7 +1,6 @@
 #include "MainComponent.h"
 
 MainComponent::MainComponent()
-    : waveformDisplay(formatManager, transportSource)
 {
     formatManager.registerBasicFormats();
     readAheadThread.startThread(juce::Thread::Priority::normal);
@@ -11,21 +10,23 @@ MainComponent::MainComponent()
         juce::Logger::writeToLog("Audio device error: " + result);
 
     deviceManager.addAudioCallback(&audioSourcePlayer);
-    audioSourcePlayer.setSource(&transportSource);
+    audioSourcePlayer.setSource(&mixer);
 
     // Toolbar buttons
-    loadButton.onClick       = [this] { loadFile(); };
+    addFileButton.onClick    = [this] { addFiles(); };
     savePresetButton.onClick = [this] { savePreset(); };
     loadPresetButton.onClick = [this] { loadPreset(); };
     playButton.onClick       = [this] { startPlayback(); };
     stopButton.onClick       = [this] { stopPlayback(); };
 
-    addAndMakeVisible(loadButton);
+    addAndMakeVisible(addFileButton);
     addAndMakeVisible(savePresetButton);
     addAndMakeVisible(loadPresetButton);
     addAndMakeVisible(playButton);
     addAndMakeVisible(stopButton);
-    addAndMakeVisible(waveformDisplay);
+
+    viewport.setViewedComponent(&layerContainer, false);
+    addAndMakeVisible(viewport);
 
     playButton.setEnabled(false);
     stopButton.setEnabled(false);
@@ -36,13 +37,18 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent()
 {
-    // Shutdown in reverse order of the audio chain
-    transportSource.stop();
+    // Stop all transports and remove from mixer
+    for (auto* layer : layers)
+    {
+        layer->stopPlayback();
+        mixer.removeInputSource(&layer->getTransportSource());
+    }
+
+    layers.clear();
+
     audioSourcePlayer.setSource(nullptr);
     deviceManager.removeAudioCallback(&audioSourcePlayer);
-    transportSource.setSource(nullptr);
-    loopingSource.reset();
-    readerSource.reset();
+    mixer.removeAllInputs();
     readAheadThread.stopThread(500);
 }
 
@@ -52,7 +58,7 @@ void MainComponent::resized()
 
     // Toolbar row
     auto toolbar = area.removeFromTop(36);
-    loadButton.setBounds(toolbar.removeFromLeft(100));
+    addFileButton.setBounds(toolbar.removeFromLeft(100));
     toolbar.removeFromLeft(8);
     savePresetButton.setBounds(toolbar.removeFromLeft(100));
     toolbar.removeFromLeft(8);
@@ -64,85 +70,109 @@ void MainComponent::resized()
 
     area.removeFromTop(10);
 
-    // Waveform fills the rest
-    waveformDisplay.setBounds(area);
+    // Viewport fills the rest
+    viewport.setBounds(area);
+    layoutLayers();
 }
 
-void MainComponent::loadFile()
+void MainComponent::addFiles()
 {
     fileChooser = std::make_unique<juce::FileChooser>(
-        "Select an audio file...",
+        "Select audio file(s)...",
         juce::File{},
         formatManager.getWildcardForAllFormats());
 
     auto chooserFlags = juce::FileBrowserComponent::openMode
-                      | juce::FileBrowserComponent::canSelectFiles;
+                      | juce::FileBrowserComponent::canSelectFiles
+                      | juce::FileBrowserComponent::canSelectMultipleItems;
 
     fileChooser->launchAsync(chooserFlags, [this](const juce::FileChooser& chooser)
     {
-        loadFileFromChooser(chooser);
+        auto results = chooser.getResults();
+        for (const auto& file : results)
+        {
+            if (file.existsAsFile())
+                addLayer(file, 0, -1);
+        }
     });
 }
 
-void MainComponent::loadFileFromChooser(const juce::FileChooser& chooser)
+void MainComponent::addLayer(const juce::File& file, juce::int64 loopStart, juce::int64 loopEnd,
+                             int crossfadeSamples, float curveX, float curveY)
 {
-    auto file = chooser.getResult();
-    if (!file.existsAsFile())
+    auto* layer = new SoundLayer(formatManager, readAheadThread);
+
+    // Add to mixer first so the transport is prepared (matching the original
+    // code path where audioSourcePlayer prepared the transport before setSource).
+    mixer.addInputSource(&layer->getTransportSource(), false);
+
+    if (!layer->loadFile(file, loopStart, loopEnd, crossfadeSamples, curveX, curveY))
+    {
+        mixer.removeInputSource(&layer->getTransportSource());
+        delete layer;
         return;
+    }
 
-    loadAudioFile(file, 0, -1);
-}
+    layer->onRemove = [this](SoundLayer* l) { removeLayer(l); };
 
-void MainComponent::loadAudioFile(const juce::File& file, juce::int64 loopStart, juce::int64 loopEnd)
-{
-    // Stop current playback and tear down old chain
-    transportSource.stop();
-    transportSource.setSource(nullptr);
-    loopingSource.reset();
-    readerSource.reset();
+    layerContainer.addAndMakeVisible(layer);
+    layers.add(layer);
 
-    // Build new source chain
-    auto* reader = formatManager.createReaderFor(file);
-    if (reader == nullptr)
-        return;
+    layoutLayers();
 
-    auto totalSamples = static_cast<juce::int64>(reader->lengthInSamples);
-    if (loopEnd < 0 || loopEnd > totalSamples)
-        loopEnd = totalSamples;
-    if (loopStart < 0 || loopStart >= loopEnd)
-        loopStart = 0;
-
-    readerSource = std::make_unique<juce::AudioFormatReaderSource>(reader, true);
-    loopingSource = std::make_unique<LoopingAudioSource>(readerSource.get(), false);
-    loopingSource->setLoopRange(loopStart, loopEnd);
-    loopingSource->setLooping(true);
-
-    transportSource.setSource(loopingSource.get(), 32768, &readAheadThread, reader->sampleRate);
-
-    waveformDisplay.setSampleRate(reader->sampleRate);
-    waveformDisplay.setLoopingSource(loopingSource.get());
-    waveformDisplay.setFile(file);
-
-    currentFilePath = file;
     playButton.setEnabled(true);
     stopButton.setEnabled(true);
     savePresetButton.setEnabled(true);
 }
 
+void MainComponent::removeLayer(SoundLayer* layer)
+{
+    if (layer == nullptr)
+        return;
+
+    layer->stopPlayback();
+    mixer.removeInputSource(&layer->getTransportSource());
+    layerContainer.removeChildComponent(layer);
+    layers.removeObject(layer, true);
+
+    layoutLayers();
+
+    if (layers.isEmpty())
+    {
+        playButton.setEnabled(false);
+        stopButton.setEnabled(false);
+        savePresetButton.setEnabled(false);
+    }
+}
+
+void MainComponent::layoutLayers()
+{
+    int totalHeight = layers.size() * layerHeight;
+    int width = viewport.getMaximumVisibleWidth();
+    if (width <= 0)
+        width = viewport.getWidth();
+
+    layerContainer.setSize(width, juce::jmax(1, totalHeight));
+
+    for (int i = 0; i < layers.size(); ++i)
+        layers[i]->setBounds(0, i * layerHeight, width, layerHeight);
+}
+
 void MainComponent::startPlayback()
 {
-    if (readerSource != nullptr)
-        transportSource.start();
+    for (auto* layer : layers)
+        layer->startPlayback();
 }
 
 void MainComponent::stopPlayback()
 {
-    transportSource.stop();
+    for (auto* layer : layers)
+        layer->stopPlayback();
 }
 
 void MainComponent::savePreset()
 {
-    if (!currentFilePath.existsAsFile() || loopingSource == nullptr)
+    if (layers.isEmpty())
         return;
 
     fileChooser = std::make_unique<juce::FileChooser>(
@@ -159,17 +189,29 @@ void MainComponent::savePreset()
         if (file == juce::File{})
             return;
 
-        auto* layer = new juce::DynamicObject();
-        layer->setProperty("filePath", currentFilePath.getFullPathName());
-        layer->setProperty("loopStart", loopingSource->getLoopStart());
-        layer->setProperty("loopEnd", loopingSource->getLoopEnd());
+        juce::Array<juce::var> layersArray;
 
-        juce::Array<juce::var> layers;
-        layers.add(juce::var(layer));
+        for (auto* layer : layers)
+        {
+            auto* layerObj = new juce::DynamicObject();
+            layerObj->setProperty("filePath", layer->getFilePath().getFullPathName());
+
+            if (auto* loop = layer->getLoopingSource())
+            {
+                layerObj->setProperty("loopStart", loop->getLoopStart());
+                layerObj->setProperty("loopEnd", loop->getLoopEnd());
+                layerObj->setProperty("crossfadeSamples", loop->getCrossfadeSamples());
+            }
+
+            layerObj->setProperty("crossfadeCurveX", static_cast<double>(layer->getCrossfadeCurveX()));
+            layerObj->setProperty("crossfadeCurveY", static_cast<double>(layer->getCrossfadeCurveY()));
+
+            layersArray.add(juce::var(layerObj));
+        }
 
         auto* preset = new juce::DynamicObject();
         preset->setProperty("version", 1);
-        preset->setProperty("layers", juce::var(layers));
+        preset->setProperty("layers", juce::var(layersArray));
 
         auto jsonString = juce::JSON::toString(juce::var(preset));
         file.replaceWithText(jsonString);
@@ -203,30 +245,49 @@ void MainComponent::loadPreset()
             return;
 
         auto layersVar = obj->getProperty("layers");
-        auto* layers = layersVar.getArray();
-        if (layers == nullptr || layers->isEmpty())
+        auto* layersArray = layersVar.getArray();
+        if (layersArray == nullptr || layersArray->isEmpty())
             return;
 
-        // Load the first layer (single-file support for now)
-        auto layerVar = (*layers)[0];
-        auto* layerObj = layerVar.getDynamicObject();
-        if (layerObj == nullptr)
-            return;
-
-        auto filePath = layerObj->getProperty("filePath").toString();
-        auto loopStart = static_cast<juce::int64>(layerObj->getProperty("loopStart"));
-        auto loopEnd = static_cast<juce::int64>(layerObj->getProperty("loopEnd"));
-
-        juce::File audioFile(filePath);
-        if (!audioFile.existsAsFile())
+        // Clear existing layers
+        for (auto* layer : layers)
         {
-            juce::AlertWindow::showMessageBoxAsync(
-                juce::AlertWindow::WarningIcon,
-                "Missing File",
-                "Audio file not found:\n" + filePath);
-            return;
+            layer->stopPlayback();
+            mixer.removeInputSource(&layer->getTransportSource());
+            layerContainer.removeChildComponent(layer);
         }
+        layers.clear();
 
-        loadAudioFile(audioFile, loopStart, loopEnd);
+        // Load each layer from preset
+        for (const auto& layerVar : *layersArray)
+        {
+            auto* layerObj = layerVar.getDynamicObject();
+            if (layerObj == nullptr)
+                continue;
+
+            auto filePath = layerObj->getProperty("filePath").toString();
+            auto loopStart = static_cast<juce::int64>(layerObj->getProperty("loopStart"));
+            auto loopEnd = static_cast<juce::int64>(layerObj->getProperty("loopEnd"));
+            auto crossfadeSamples = static_cast<int>(layerObj->getProperty("crossfadeSamples"));
+
+            auto curveX = layerObj->hasProperty("crossfadeCurveX")
+                ? static_cast<float>(static_cast<double>(layerObj->getProperty("crossfadeCurveX")))
+                : 0.25f;
+            auto curveY = layerObj->hasProperty("crossfadeCurveY")
+                ? static_cast<float>(static_cast<double>(layerObj->getProperty("crossfadeCurveY")))
+                : 0.75f;
+
+            juce::File audioFile(filePath);
+            if (!audioFile.existsAsFile())
+            {
+                juce::AlertWindow::showMessageBoxAsync(
+                    juce::AlertWindow::WarningIcon,
+                    "Missing File",
+                    "Audio file not found:\n" + filePath);
+                continue;
+            }
+
+            addLayer(audioFile, loopStart, loopEnd, crossfadeSamples, curveX, curveY);
+        }
     });
 }

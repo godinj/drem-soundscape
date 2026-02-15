@@ -18,6 +18,8 @@ target_sources(DremSoundscape PRIVATE
     src/Main.cpp
     src/LoopingAudioSource.cpp
     src/WaveformDisplay.cpp
+    src/SoundLayer.cpp
+    src/CrossfadeCurveEditor.cpp
     src/MainComponent.cpp
 )
 
