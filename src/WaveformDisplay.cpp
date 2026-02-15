@@ -155,9 +155,32 @@ void WaveformDisplay::paint(juce::Graphics& g)
                     wrapped = lStart;
             }
 
-            const float x = sampleToX(wrapped);
-            g.setColour(juce::Colours::white);
-            g.drawLine(x, bounds.getY(), x, bounds.getBottom(), 2.0f);
+            const auto xfadeStart = lEnd - static_cast<juce::int64>(xfadeSamps);
+
+            if (xfadeSamps > 0 && wrapped >= xfadeStart)
+            {
+                const float progress = static_cast<float>(wrapped - xfadeStart)
+                                     / static_cast<float>(xfadeSamps);
+                const float tailAlpha = juce::jmax(0.15f, 1.0f - progress);
+                const float headAlpha = juce::jmax(0.15f, progress);
+
+                // Tail playhead (fading out)
+                const float tailX = sampleToX(wrapped);
+                g.setColour(juce::Colours::white.withAlpha(tailAlpha));
+                g.drawLine(tailX, bounds.getY(), tailX, bounds.getBottom(), 2.0f);
+
+                // Head playhead (fading in)
+                const auto headPos = lStart + (wrapped - xfadeStart);
+                const float headX = sampleToX(headPos);
+                g.setColour(juce::Colours::white.withAlpha(headAlpha));
+                g.drawLine(headX, bounds.getY(), headX, bounds.getBottom(), 2.0f);
+            }
+            else
+            {
+                const float x = sampleToX(wrapped);
+                g.setColour(juce::Colours::white);
+                g.drawLine(x, bounds.getY(), x, bounds.getBottom(), 2.0f);
+            }
         }
     }
 }
