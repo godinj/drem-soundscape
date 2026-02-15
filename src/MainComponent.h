@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "SoundLayer.h"
+#include "FilteredAudioSource.h"
 
 class MainComponent : public juce::Component
 {
@@ -30,8 +31,9 @@ private:
     juce::AudioFormatManager formatManager;
     juce::TimeSliceThread readAheadThread { "audio-read-ahead" };
 
-    // Mixer and player
+    // Mixer, filter, and player
     juce::MixerAudioSource mixer;
+    FilteredAudioSource filteredOutput { &mixer };
     juce::AudioSourcePlayer audioSourcePlayer;
 
     // Layers
@@ -43,6 +45,9 @@ private:
     juce::TextButton loadPresetButton { "Load Preset" };
     juce::TextButton playButton       { "Play" };
     juce::TextButton stopButton       { "Stop" };
+
+    juce::Slider hpfCutoffKnob;
+    juce::Label hpfCutoffLabel { {}, "HPF" };
 
     juce::Slider masterVolumeKnob;
     juce::Label masterVolumeLabel { {}, "Master" };

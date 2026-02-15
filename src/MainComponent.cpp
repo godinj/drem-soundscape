@@ -10,7 +10,7 @@ MainComponent::MainComponent()
         juce::Logger::writeToLog("Audio device error: " + result);
 
     deviceManager.addAudioCallback(&audioSourcePlayer);
-    audioSourcePlayer.setSource(&mixer);
+    audioSourcePlayer.setSource(&filteredOutput);
 
     // Toolbar buttons
     addFileButton.onClick    = [this] { addFiles(); };
@@ -28,6 +28,17 @@ MainComponent::MainComponent()
         audioSourcePlayer.setGain(static_cast<float>(masterVolumeKnob.getValue()));
     };
 
+    hpfCutoffKnob.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    hpfCutoffKnob.setRange(20.0, 2000.0, 1.0);
+    hpfCutoffKnob.setValue(20.0, juce::dontSendNotification);
+    hpfCutoffKnob.setSkewFactorFromMidPoint(200.0);
+    hpfCutoffKnob.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    hpfCutoffKnob.setDoubleClickReturnValue(true, 20.0);
+    hpfCutoffKnob.onValueChange = [this] {
+        filteredOutput.setCutoffFrequency(static_cast<float>(hpfCutoffKnob.getValue()));
+    };
+
+    hpfCutoffLabel.setJustificationType(juce::Justification::centred);
     masterVolumeLabel.setJustificationType(juce::Justification::centred);
 
     addAndMakeVisible(addFileButton);
@@ -35,6 +46,8 @@ MainComponent::MainComponent()
     addAndMakeVisible(loadPresetButton);
     addAndMakeVisible(playButton);
     addAndMakeVisible(stopButton);
+    addAndMakeVisible(hpfCutoffKnob);
+    addAndMakeVisible(hpfCutoffLabel);
     addAndMakeVisible(masterVolumeKnob);
     addAndMakeVisible(masterVolumeLabel);
 
@@ -78,6 +91,12 @@ void MainComponent::resized()
     masterVolumeKnob.setBounds(masterKnobArea);
     auto masterLabelArea = toolbar.removeFromRight(50);
     masterVolumeLabel.setBounds(masterLabelArea.withHeight(20).withY(masterKnobArea.getCentreY() - 10));
+
+    // HPF cutoff knob — left of master volume
+    auto hpfKnobArea = toolbar.removeFromRight(70);
+    hpfCutoffKnob.setBounds(hpfKnobArea);
+    auto hpfLabelArea = toolbar.removeFromRight(50);
+    hpfCutoffLabel.setBounds(hpfLabelArea.withHeight(20).withY(hpfKnobArea.getCentreY() - 10));
 
     // Buttons — left side
     addFileButton.setBounds(toolbar.removeFromLeft(100).withHeight(36));
@@ -264,6 +283,7 @@ void MainComponent::savePreset()
         auto* preset = new juce::DynamicObject();
         preset->setProperty("version", 1);
         preset->setProperty("masterVolume", masterVolumeKnob.getValue());
+        preset->setProperty("hpfCutoff", hpfCutoffKnob.getValue());
         preset->setProperty("layers", juce::var(layersArray));
 
         auto jsonString = juce::JSON::toString(juce::var(preset));
@@ -302,6 +322,14 @@ void MainComponent::loadPreset()
             auto mv = static_cast<float>(static_cast<double>(obj->getProperty("masterVolume")));
             masterVolumeKnob.setValue(static_cast<double>(mv), juce::dontSendNotification);
             audioSourcePlayer.setGain(mv);
+        }
+
+        {
+            auto cutoff = obj->hasProperty("hpfCutoff")
+                ? static_cast<float>(static_cast<double>(obj->getProperty("hpfCutoff")))
+                : 20.0f;
+            hpfCutoffKnob.setValue(static_cast<double>(cutoff), juce::dontSendNotification);
+            filteredOutput.setCutoffFrequency(cutoff);
         }
 
         auto layersVar = obj->getProperty("layers");

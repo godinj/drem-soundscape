@@ -20,6 +20,7 @@ target_sources(DremSoundscape PRIVATE
     src/WaveformDisplay.cpp
     src/SoundLayer.cpp
     src/CrossfadeCurveEditor.cpp
+    src/FilteredAudioSource.cpp
     src/MainComponent.cpp
 )
 
@@ -39,6 +40,7 @@ target_link_libraries(DremSoundscape PRIVATE
     juce::juce_audio_utils
     juce::juce_core
     juce::juce_data_structures
+    juce::juce_dsp
     juce::juce_events
     juce::juce_graphics
     juce::juce_gui_basics
