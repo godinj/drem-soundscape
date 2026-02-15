@@ -17,6 +17,9 @@ private:
     void startPlayback();
     void stopPlayback();
     void loadFileFromChooser(const juce::FileChooser& chooser);
+    void savePreset();
+    void loadPreset();
+    void loadAudioFile(const juce::File& file, juce::int64 loopStart, juce::int64 loopEnd);
 
     // Audio infrastructure
     juce::AudioDeviceManager deviceManager;
@@ -30,12 +33,15 @@ private:
     juce::AudioSourcePlayer audioSourcePlayer;
 
     // GUI
-    juce::TextButton loadButton  { "Load File" };
-    juce::TextButton playButton  { "Play" };
-    juce::TextButton stopButton  { "Stop" };
+    juce::TextButton loadButton       { "Load File" };
+    juce::TextButton savePresetButton { "Save Preset" };
+    juce::TextButton loadPresetButton { "Load Preset" };
+    juce::TextButton playButton       { "Play" };
+    juce::TextButton stopButton       { "Stop" };
     WaveformDisplay waveformDisplay;
 
     std::unique_ptr<juce::FileChooser> fileChooser;
+    juce::File currentFilePath;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
