@@ -13,7 +13,7 @@ public:
     juce::int64 getLoopStart() const { return loopStart.load(); }
     juce::int64 getLoopEnd() const   { return loopEnd.load(); }
 
-    void setLooping(bool shouldLoop);
+    void setLooping(bool shouldLoop) override;
 
     // PositionableAudioSource overrides
     void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override;
