@@ -99,6 +99,8 @@ void MainComponent::loadFileFromChooser(const juce::FileChooser& chooser)
 
     transportSource.setSource(loopingSource.get(), 32768, &readAheadThread, reader->sampleRate);
 
+    waveformDisplay.setSampleRate(reader->sampleRate);
+    waveformDisplay.setLoopingSource(loopingSource.get());
     waveformDisplay.setFile(file);
 
     playButton.setEnabled(true);
