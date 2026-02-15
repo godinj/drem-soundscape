@@ -136,3 +136,13 @@ void CrossfadeCurveEditor::mouseUp(const juce::MouseEvent&)
 {
     dragging = false;
 }
+
+void CrossfadeCurveEditor::mouseDoubleClick(const juce::MouseEvent&)
+{
+    cpX = 0.25f;
+    cpY = 0.75f;
+    repaint();
+
+    if (onCurveChanged)
+        onCurveChanged(cpX, cpY);
+}

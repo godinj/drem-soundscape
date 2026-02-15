@@ -23,6 +23,7 @@ SoundLayer::SoundLayer(juce::AudioFormatManager& fm, juce::TimeSliceThread& thre
     crossfadeSlider.setValue(0.0, juce::dontSendNotification);
     crossfadeSlider.setTextValueSuffix(" ms");
     crossfadeSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 60, 20);
+    crossfadeSlider.setDoubleClickReturnValue(true, 0.0);
     crossfadeSlider.onValueChange = [this] {
         if (loopingSource != nullptr && fileSampleRate > 0.0)
         {
@@ -39,6 +40,7 @@ SoundLayer::SoundLayer(juce::AudioFormatManager& fm, juce::TimeSliceThread& thre
     volumeKnob.setRange(0.0, 1.5, 0.01);
     volumeKnob.setValue(1.0, juce::dontSendNotification);
     volumeKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 40, 14);
+    volumeKnob.setDoubleClickReturnValue(true, 1.0);
     volumeKnob.onValueChange = [this] {
         transportSource.setGain(static_cast<float>(volumeKnob.getValue()));
     };

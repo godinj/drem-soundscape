@@ -23,6 +23,7 @@ MainComponent::MainComponent()
     masterVolumeKnob.setRange(0.0, 1.5, 0.01);
     masterVolumeKnob.setValue(1.0, juce::dontSendNotification);
     masterVolumeKnob.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    masterVolumeKnob.setDoubleClickReturnValue(true, 1.0);
     masterVolumeKnob.onValueChange = [this] {
         audioSourcePlayer.setGain(static_cast<float>(masterVolumeKnob.getValue()));
     };
