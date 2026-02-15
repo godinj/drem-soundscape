@@ -32,6 +32,7 @@ MainComponent::MainComponent()
     stopButton.setEnabled(false);
     savePresetButton.setEnabled(false);
 
+    setWantsKeyboardFocus(true);
     setSize(800, 600);
 }
 
@@ -156,6 +157,33 @@ void MainComponent::layoutLayers()
 
     for (int i = 0; i < layers.size(); ++i)
         layers[i]->setBounds(0, i * layerHeight, width, layerHeight);
+}
+
+bool MainComponent::isPlaying() const
+{
+    for (auto* layer : layers)
+        if (layer->getTransportSource().isPlaying())
+            return true;
+
+    return false;
+}
+
+bool MainComponent::keyPressed(const juce::KeyPress& key)
+{
+    if (key == juce::KeyPress::spaceKey)
+    {
+        if (layers.isEmpty())
+            return true;
+
+        if (isPlaying())
+            stopPlayback();
+        else
+            startPlayback();
+
+        return true;
+    }
+
+    return false;
 }
 
 void MainComponent::startPlayback()

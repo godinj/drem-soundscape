@@ -21,6 +21,7 @@ public:
     void stopPlayback();
 
     juce::AudioTransportSource& getTransportSource() { return transportSource; }
+    const juce::AudioTransportSource& getTransportSource() const { return transportSource; }
     LoopingAudioSource* getLoopingSource() { return loopingSource.get(); }
     const juce::File& getFilePath() const { return filePath; }
     bool isFileLoaded() const { return readerSource != nullptr; }

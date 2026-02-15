@@ -10,8 +10,10 @@ public:
     ~MainComponent() override;
 
     void resized() override;
+    bool keyPressed(const juce::KeyPress& key) override;
 
 private:
+    bool isPlaying() const;
     void addFiles();
     void addLayer(const juce::File& file, juce::int64 loopStart, juce::int64 loopEnd,
                   int crossfadeSamples = 0, float curveX = 0.25f, float curveY = 0.75f);
