@@ -35,6 +35,16 @@ SoundLayer::SoundLayer(juce::AudioFormatManager& fm, juce::TimeSliceThread& thre
     crossfadeLabel.setJustificationType(juce::Justification::centredRight);
     crossfadeLabel.attachToComponent(&crossfadeSlider, true);
 
+    volumeKnob.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    volumeKnob.setRange(0.0, 1.5, 0.01);
+    volumeKnob.setValue(1.0, juce::dontSendNotification);
+    volumeKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 40, 14);
+    volumeKnob.onValueChange = [this] {
+        transportSource.setGain(static_cast<float>(volumeKnob.getValue()));
+    };
+
+    volumeLabel.setJustificationType(juce::Justification::centred);
+
     curveEditor.onCurveChanged = [this](float cx, float cy) {
         if (loopingSource != nullptr)
             loopingSource->setCrossfadeCurve(cx, cy);
@@ -42,6 +52,8 @@ SoundLayer::SoundLayer(juce::AudioFormatManager& fm, juce::TimeSliceThread& thre
 
     addAndMakeVisible(waveformDisplay);
     addAndMakeVisible(removeButton);
+    addAndMakeVisible(volumeKnob);
+    addAndMakeVisible(volumeLabel);
     addAndMakeVisible(crossfadeSlider);
     addAndMakeVisible(crossfadeLabel);
     addAndMakeVisible(curveEditor);
@@ -121,6 +133,17 @@ float SoundLayer::getCrossfadeCurveY() const
     return curveEditor.getControlPointY();
 }
 
+float SoundLayer::getVolume() const
+{
+    return transportSource.getGain();
+}
+
+void SoundLayer::setVolume(float v)
+{
+    volumeKnob.setValue(static_cast<double>(v), juce::dontSendNotification);
+    transportSource.setGain(v);
+}
+
 void SoundLayer::startPlayback()
 {
     if (readerSource != nullptr)
@@ -139,6 +162,11 @@ void SoundLayer::resized()
 
     auto controlStrip = area.removeFromBottom(68);
     curveEditor.setBounds(controlStrip.removeFromLeft(64).reduced(2));
+
+    auto volumeArea = controlStrip.removeFromLeft(50);
+    volumeKnob.setBounds(volumeArea.removeFromTop(50));
+    volumeLabel.setBounds(volumeArea);
+
     controlStrip.removeFromLeft(50); // space for XFade label
     crossfadeSlider.setBounds(controlStrip);
 

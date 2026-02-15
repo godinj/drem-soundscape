@@ -19,11 +19,23 @@ MainComponent::MainComponent()
     playButton.onClick       = [this] { startPlayback(); };
     stopButton.onClick       = [this] { stopPlayback(); };
 
+    masterVolumeKnob.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    masterVolumeKnob.setRange(0.0, 1.5, 0.01);
+    masterVolumeKnob.setValue(1.0, juce::dontSendNotification);
+    masterVolumeKnob.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    masterVolumeKnob.onValueChange = [this] {
+        audioSourcePlayer.setGain(static_cast<float>(masterVolumeKnob.getValue()));
+    };
+
+    masterVolumeLabel.setJustificationType(juce::Justification::centred);
+
     addAndMakeVisible(addFileButton);
     addAndMakeVisible(savePresetButton);
     addAndMakeVisible(loadPresetButton);
     addAndMakeVisible(playButton);
     addAndMakeVisible(stopButton);
+    addAndMakeVisible(masterVolumeKnob);
+    addAndMakeVisible(masterVolumeLabel);
 
     viewport.setViewedComponent(&layerContainer, false);
     addAndMakeVisible(viewport);
@@ -58,16 +70,24 @@ void MainComponent::resized()
     auto area = getLocalBounds().reduced(10);
 
     // Toolbar row
-    auto toolbar = area.removeFromTop(36);
-    addFileButton.setBounds(toolbar.removeFromLeft(100));
+    auto toolbar = area.removeFromTop(80);
+
+    // Master volume knob — far right
+    auto masterKnobArea = toolbar.removeFromRight(70);
+    masterVolumeKnob.setBounds(masterKnobArea);
+    auto masterLabelArea = toolbar.removeFromRight(50);
+    masterVolumeLabel.setBounds(masterLabelArea.withHeight(20).withY(masterKnobArea.getCentreY() - 10));
+
+    // Buttons — left side
+    addFileButton.setBounds(toolbar.removeFromLeft(100).withHeight(36));
     toolbar.removeFromLeft(8);
-    savePresetButton.setBounds(toolbar.removeFromLeft(100));
+    savePresetButton.setBounds(toolbar.removeFromLeft(100).withHeight(36));
     toolbar.removeFromLeft(8);
-    loadPresetButton.setBounds(toolbar.removeFromLeft(100));
+    loadPresetButton.setBounds(toolbar.removeFromLeft(100).withHeight(36));
     toolbar.removeFromLeft(8);
-    playButton.setBounds(toolbar.removeFromLeft(80));
+    playButton.setBounds(toolbar.removeFromLeft(80).withHeight(36));
     toolbar.removeFromLeft(8);
-    stopButton.setBounds(toolbar.removeFromLeft(80));
+    stopButton.setBounds(toolbar.removeFromLeft(80).withHeight(36));
 
     area.removeFromTop(10);
 
@@ -99,7 +119,8 @@ void MainComponent::addFiles()
 }
 
 void MainComponent::addLayer(const juce::File& file, juce::int64 loopStart, juce::int64 loopEnd,
-                             int crossfadeSamples, float curveX, float curveY)
+                             int crossfadeSamples, float curveX, float curveY,
+                             float volume)
 {
     auto* layer = new SoundLayer(formatManager, readAheadThread);
 
@@ -114,6 +135,7 @@ void MainComponent::addLayer(const juce::File& file, juce::int64 loopStart, juce
         return;
     }
 
+    layer->setVolume(volume);
     layer->onRemove = [this](SoundLayer* l) { removeLayer(l); };
 
     layerContainer.addAndMakeVisible(layer);
@@ -233,12 +255,14 @@ void MainComponent::savePreset()
 
             layerObj->setProperty("crossfadeCurveX", static_cast<double>(layer->getCrossfadeCurveX()));
             layerObj->setProperty("crossfadeCurveY", static_cast<double>(layer->getCrossfadeCurveY()));
+            layerObj->setProperty("volume", static_cast<double>(layer->getVolume()));
 
             layersArray.add(juce::var(layerObj));
         }
 
         auto* preset = new juce::DynamicObject();
         preset->setProperty("version", 1);
+        preset->setProperty("masterVolume", masterVolumeKnob.getValue());
         preset->setProperty("layers", juce::var(layersArray));
 
         auto jsonString = juce::JSON::toString(juce::var(preset));
@@ -271,6 +295,13 @@ void MainComponent::loadPreset()
         auto* obj = parsed.getDynamicObject();
         if (obj == nullptr)
             return;
+
+        if (obj->hasProperty("masterVolume"))
+        {
+            auto mv = static_cast<float>(static_cast<double>(obj->getProperty("masterVolume")));
+            masterVolumeKnob.setValue(static_cast<double>(mv), juce::dontSendNotification);
+            audioSourcePlayer.setGain(mv);
+        }
 
         auto layersVar = obj->getProperty("layers");
         auto* layersArray = layersVar.getArray();
@@ -305,6 +336,10 @@ void MainComponent::loadPreset()
                 ? static_cast<float>(static_cast<double>(layerObj->getProperty("crossfadeCurveY")))
                 : 0.75f;
 
+            auto volume = layerObj->hasProperty("volume")
+                ? static_cast<float>(static_cast<double>(layerObj->getProperty("volume")))
+                : 1.0f;
+
             juce::File audioFile(filePath);
             if (!audioFile.existsAsFile())
             {
@@ -315,7 +350,7 @@ void MainComponent::loadPreset()
                 continue;
             }
 
-            addLayer(audioFile, loopStart, loopEnd, crossfadeSamples, curveX, curveY);
+            addLayer(audioFile, loopStart, loopEnd, crossfadeSamples, curveX, curveY, volume);
         }
     });
 }

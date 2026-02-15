@@ -17,6 +17,9 @@ public:
     float getCrossfadeCurveX() const;
     float getCrossfadeCurveY() const;
 
+    float getVolume() const;
+    void setVolume(float v);
+
     void startPlayback();
     void stopPlayback();
 
@@ -42,6 +45,8 @@ private:
     // GUI
     WaveformDisplay waveformDisplay;
     juce::TextButton removeButton { "X" };
+    juce::Slider volumeKnob;
+    juce::Label volumeLabel { {}, "Vol" };
     juce::Slider crossfadeSlider;
     juce::Label crossfadeLabel { {}, "XFade" };
     CrossfadeCurveEditor curveEditor;

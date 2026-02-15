@@ -16,7 +16,8 @@ private:
     bool isPlaying() const;
     void addFiles();
     void addLayer(const juce::File& file, juce::int64 loopStart, juce::int64 loopEnd,
-                  int crossfadeSamples = 0, float curveX = 0.25f, float curveY = 0.75f);
+                  int crossfadeSamples = 0, float curveX = 0.25f, float curveY = 0.75f,
+                  float volume = 1.0f);
     void removeLayer(SoundLayer* layer);
     void layoutLayers();
     void startPlayback();
@@ -42,6 +43,9 @@ private:
     juce::TextButton loadPresetButton { "Load Preset" };
     juce::TextButton playButton       { "Play" };
     juce::TextButton stopButton       { "Stop" };
+
+    juce::Slider masterVolumeKnob;
+    juce::Label masterVolumeLabel { {}, "Master" };
 
     juce::Viewport viewport;
     juce::Component layerContainer;
