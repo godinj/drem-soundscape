@@ -1,4 +1,5 @@
 #include "LoopingAudioSource.h"
+#include <limits>
 
 LoopingAudioSource::LoopingAudioSource(juce::PositionableAudioSource* src, bool deleteWhenRemoved)
     : source(src, deleteWhenRemoved)
@@ -52,9 +53,15 @@ void LoopingAudioSource::getNextAudioBlock(const juce::AudioSourceChannelInfo& b
         return;
     }
 
-    // Wrap position into loop range if needed
+    // Wrap position into loop range using modular arithmetic so that
+    // linear positions from BufferingAudioSource map correctly into the loop.
     if (pos >= lEnd || pos < lStart)
-        pos = lStart;
+    {
+        const auto loopLen = lEnd - lStart;
+        pos = lStart + ((pos - lStart) % loopLen);
+        if (pos < lStart)
+            pos = lStart;
+    }
 
     int samplesRemaining = bufferToFill.numSamples;
     int destOffset = bufferToFill.startSample;
@@ -92,5 +99,8 @@ juce::int64 LoopingAudioSource::getNextReadPosition() const
 
 juce::int64 LoopingAudioSource::getTotalLength() const
 {
+    if (looping.load())
+        return std::numeric_limits<juce::int64>::max();
+
     return source->getTotalLength();
 }
