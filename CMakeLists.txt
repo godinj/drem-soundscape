@@ -10,6 +10,7 @@ juce_add_gui_app(DremSoundscape
     PRODUCT_NAME "Drem Soundscape"
     COMPANY_NAME "Drem"
     BUNDLE_ID "com.drem.soundscape"
+    ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/resources/icon.png"
 )
 
 juce_generate_juce_header(DremSoundscape)
