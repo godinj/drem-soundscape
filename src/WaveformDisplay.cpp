@@ -199,7 +199,19 @@ void WaveformDisplay::mouseDown(const juce::MouseEvent& event)
     else if (std::abs(mx - endX) <= handleHitRadius)
         dragging = DragTarget::End;
     else
+    {
         dragging = DragTarget::None;
+
+        // Click-to-seek: reposition the playhead to the click location
+        if (transport != nullptr)
+        {
+            const juce::int64 loopStart = loopingSource->getLoopStart();
+            const juce::int64 loopEnd   = loopingSource->getLoopEnd();
+            const juce::int64 sample    = juce::jlimit(loopStart, loopEnd, xToSample(mx));
+            transport->setPosition(static_cast<double>(sample) / sampleRate);
+            repaint();
+        }
+    }
 
     if (dragging != DragTarget::None)
         setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
