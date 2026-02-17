@@ -56,6 +56,23 @@ private:
     juce::Component layerContainer;
 
     std::unique_ptr<juce::FileChooser> fileChooser;
+    std::unique_ptr<juce::FileChooser> missingFileChooser;
+
+    struct PendingLayer
+    {
+        juce::String originalPath;
+        juce::int64 loopStart;
+        juce::int64 loopEnd;
+        int crossfadeSamples;
+        float curveX;
+        float curveY;
+        float volume;
+    };
+
+    std::vector<PendingLayer> pendingMissingLayers;
+    int pendingLayerIndex = 0;
+
+    void processNextMissingLayer();
 
     static constexpr int layerHeight = 188;
 

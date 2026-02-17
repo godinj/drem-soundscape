@@ -347,6 +347,9 @@ void MainComponent::loadPreset()
         layers.clear();
 
         // Load each layer from preset
+        pendingMissingLayers.clear();
+        pendingLayerIndex = 0;
+
         for (const auto& layerVar : *layersArray)
         {
             auto* layerObj = layerVar.getDynamicObject();
@@ -370,16 +373,56 @@ void MainComponent::loadPreset()
                 : 1.0f;
 
             juce::File audioFile(filePath);
-            if (!audioFile.existsAsFile())
+            if (audioFile.existsAsFile())
             {
-                juce::AlertWindow::showMessageBoxAsync(
-                    juce::AlertWindow::WarningIcon,
-                    "Missing File",
-                    "Audio file not found:\n" + filePath);
-                continue;
+                addLayer(audioFile, loopStart, loopEnd, crossfadeSamples, curveX, curveY, volume);
             }
-
-            addLayer(audioFile, loopStart, loopEnd, crossfadeSamples, curveX, curveY, volume);
+            else
+            {
+                pendingMissingLayers.push_back({ filePath, loopStart, loopEnd,
+                                                  crossfadeSamples, curveX, curveY, volume });
+            }
         }
+
+        juce::MessageManager::callAsync([this]() { processNextMissingLayer(); });
+    });
+}
+
+void MainComponent::processNextMissingLayer()
+{
+    if (pendingLayerIndex >= static_cast<int>(pendingMissingLayers.size()))
+    {
+        pendingMissingLayers.clear();
+        pendingLayerIndex = 0;
+        missingFileChooser.reset();
+        return;
+    }
+
+    const auto& pending = pendingMissingLayers[static_cast<size_t>(pendingLayerIndex)];
+
+    juce::File startDir = juce::File(pending.originalPath).getParentDirectory();
+    if (!startDir.isDirectory())
+        startDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+
+    missingFileChooser = std::make_unique<juce::FileChooser>(
+        "Missing: " + juce::File(pending.originalPath).getFileName() + " — Locate or Cancel to skip",
+        startDir,
+        formatManager.getWildcardForAllFormats());
+
+    auto chooserFlags = juce::FileBrowserComponent::openMode
+                      | juce::FileBrowserComponent::canSelectFiles;
+
+    missingFileChooser->launchAsync(chooserFlags, [this](const juce::FileChooser& chooser)
+    {
+        auto chosen = chooser.getResult();
+        if (chosen.existsAsFile())
+        {
+            const auto& layer = pendingMissingLayers[static_cast<size_t>(pendingLayerIndex)];
+            addLayer(chosen, layer.loopStart, layer.loopEnd,
+                     layer.crossfadeSamples, layer.curveX, layer.curveY, layer.volume);
+        }
+
+        ++pendingLayerIndex;
+        juce::MessageManager::callAsync([this]() { processNextMissingLayer(); });
     });
 }
