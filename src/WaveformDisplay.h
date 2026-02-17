@@ -9,10 +9,10 @@ class WaveformDisplay : public juce::Component,
                         private juce::Timer
 {
 public:
-    WaveformDisplay(juce::AudioFormatManager& formatManager,
-                    juce::AudioTransportSource& transportSource);
+    explicit WaveformDisplay(juce::AudioFormatManager& formatManager);
     ~WaveformDisplay() override;
 
+    void setTransportSource(juce::AudioTransportSource* source);
     void setFile(const juce::File& file);
     void clear();
 
@@ -37,7 +37,7 @@ private:
 
     enum class DragTarget { None, Start, End };
 
-    juce::AudioTransportSource& transport;
+    juce::AudioTransportSource* transport = nullptr;
     juce::AudioThumbnailCache thumbnailCache { 5 };
     juce::AudioThumbnail thumbnail;
 
